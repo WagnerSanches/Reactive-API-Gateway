@@ -17,8 +17,8 @@ public class RateLimiter {
     }
 
     public Mono<Boolean> isAllowed(String clientId) {
-        String capacity = "10";
-        String refillRate = "1";
+        String capacity = "5";
+        String refillRate = "0.5";
         String now = String.valueOf(Instant.now().getEpochSecond());
 
         return Mono.fromDirect(connection.reactive().eval(

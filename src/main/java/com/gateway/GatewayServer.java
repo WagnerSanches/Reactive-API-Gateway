@@ -13,8 +13,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 
 public class GatewayServer {
 
@@ -28,7 +27,15 @@ public class GatewayServer {
         RedisClient redisClient = RedisClient.create("redis://localhost:6379");
         StatefulRedisConnection<String, String> connection = redisClient.connect();
 
-        String luaScript = Files.readString(Path.of(getClass().getResource("/request_rate_limiter.lua").toURI()));
+        String luaScript;
+        try (var inputStream = getClass().getResourceAsStream("/request_rate_limiter.lua")) {
+            if(inputStream == null) {
+                throw new RuntimeException("Lua script not found in resources!");
+            }
+
+            luaScript = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
         RateLimiter rateLimiter = new RateLimiter(connection, luaScript);
 
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
@@ -46,6 +53,7 @@ public class GatewayServer {
                             channelPipeline.addLast(new HttpServerCodec());
                             channelPipeline.addLast(new HttpObjectAggregator(65536));
                             channelPipeline.addLast(new RateLimitHandler(rateLimiter));
+                            channelPipeline.addLast(new BackendHandler());
                         }
                     });
 
