@@ -5,6 +5,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.*;
 import io.netty.util.ReferenceCountUtil;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.nio.charset.StandardCharsets;
@@ -12,31 +13,38 @@ import java.nio.charset.StandardCharsets;
 public class RateLimitHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
     private final RateLimiter rateLimiter;
+    private final Scheduler scheduler;
 
     public RateLimitHandler(RateLimiter rateLimiter) {
         this.rateLimiter = rateLimiter;
+        this.scheduler = Schedulers.boundedElastic();
+    }
+
+    public RateLimitHandler(RateLimiter rateLimiter, Scheduler scheduler) {
+        this.rateLimiter = rateLimiter;
+        this.scheduler = scheduler;
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, FullHttpRequest fullHttpRequest) {
-        fullHttpRequest.retain();
+        FullHttpRequest retainedRequest = fullHttpRequest.retain(); // keeping alive
 
         String clientId = fullHttpRequest.headers().get("User-Agent", "unknown");
 
         rateLimiter.isAllowed(clientId)
-                .subscribeOn(Schedulers.boundedElastic())
+                .subscribeOn(scheduler)
                 .subscribe(allowed -> {
                     try {
                         if(allowed) {
-                            channelHandlerContext.fireChannelRead(fullHttpRequest.retain());
+                            channelHandlerContext.fireChannelRead(retainedRequest);
                         } else {
                             sendErrorResponse(channelHandlerContext);
                         }
                     } finally {
-                        ReferenceCountUtil.release(fullHttpRequest);
+                        ReferenceCountUtil.release(retainedRequest);
                     }
                 }, error -> {
-                    ReferenceCountUtil.release(fullHttpRequest);
+                    ReferenceCountUtil.release(retainedRequest);
                     channelHandlerContext.close();
                 });
     }
