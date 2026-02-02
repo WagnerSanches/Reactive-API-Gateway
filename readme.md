@@ -1,15 +1,17 @@
-## Reactive API Gateway
+##  Reactive API Gateway
+Building a high-performance, non-blocking entry point for microservices that
+protects backend resources using a distributed Rate Limiter.
 
-I used netty to handle event-driven networking and Project Reactor to 
+## Architecture
+- Netty: The event-driven networking engine that handles connections without
+  blocking threads.
+- Project Reactor: The library providing Mono/Flux to handle the "wait" for
+  Redis results asynchronously.
+- Lettuce: A thread-safe, reactive Redis client.
 
-I used NIO in the achictecture
 
+## Verification
+Unit Testing: Used `EmbeddedChannel` to simulate a pipeline.
 
-A clear name and a one-sentence hook of what the project is.
-
-Step-by-step commands to set up the environment.
-
-Code snippets or examples of the project in action.
-
-A user should be able to Install, Configure, and Run the project with minimal friction.
-
+Sync Testing: Injected `Schedulers.immediate()` into the handler during
+  tests to avoid "null" results from async race conditions.
